@@ -1,0 +1,19 @@
+# Target
+CONFIG_TARGET_rockchip=y
+CONFIG_TARGET_rockchip_armv8=y
+
+# Build all kernel modules
+CONFIG_ALL_KMODS=y
+
+# KVM support (kernel config in patches/)
+CONFIG_PACKAGE_kmod-vhost=y
+CONFIG_PACKAGE_kmod-vhost-net=y
+
+# Our packages
+CONFIG_PACKAGE_qemu-firmware-edk2-aarch64=y
+
+# Disable image/rootfs generation (packages only)
+# CONFIG_TARGET_ROOTFS_SQUASHFS is not set
+# CONFIG_TARGET_ROOTFS_EXT4FS is not set
+# CONFIG_TARGET_ROOTFS_CPIOGZ is not set
+# CONFIG_TARGET_ROOTFS_TARGZ is not set

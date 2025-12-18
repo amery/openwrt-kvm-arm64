@@ -3,12 +3,35 @@
 set -eu
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT_FROM_OPENWRT=".."
 OPENWRT="$REPO_ROOT/openwrt"
 CONFIGS="$REPO_ROOT/configs"
 PATCHES="$REPO_ROOT/patches"
 
 die() { echo "bootstrap: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
+
+setup_keys() {
+    local name="$1"
+    local key="$REPO_ROOT/keys/$name.key"
+    local pub="$REPO_ROOT/keys/$name.pub"
+
+    mkdir -p "$REPO_ROOT/keys"
+
+    if [ ! -s "$key" ]; then
+        info "Generating $name.key"
+        openssl ecparam -name prime256v1 -genkey -noout -out "$key"
+        rm -f "$pub"
+    fi
+
+    if [ ! -s "$pub" ]; then
+        info "Generating $name.pub"
+        openssl ec -in "$key" -pubout -out "$pub" 2>/dev/null
+    fi
+
+    [ -L "$OPENWRT/private-key.pem" ] || ln -snf "$REPO_ROOT_FROM_OPENWRT/keys/$name.key" "$OPENWRT/private-key.pem"
+    [ -L "$OPENWRT/public-key.pem" ] || ln -snf "$REPO_ROOT_FROM_OPENWRT/keys/$name.pub" "$OPENWRT/public-key.pem"
+}
 
 restore_config() {
     local seed="$1"
@@ -72,6 +95,9 @@ if [ ! -f "$OPENWRT/Makefile" ]; then
     info "Initialising openwrt submodule"
     git -C "$REPO_ROOT" submodule update --init --depth 1 openwrt
 fi
+
+# Setup signing keys
+setup_keys "openwrt-kvm-arm64"
 
 # Restore and expand config
 info "Restoring config from configs/$TARGET-$SUBTARGET"

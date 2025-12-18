@@ -67,7 +67,7 @@ echo "$REPO/aarch64_generic/ours/packages.adb" \
     >> /etc/apk/repositories.d/kvm.list
 
 # Install signing key
-wget "$REPO/keys/openwrt-kvm.pem" -O /etc/apk/keys/openwrt-kvm.pem
+wget "$REPO/keys/openwrt-kvm-arm64.pub" -O /etc/apk/keys/openwrt-kvm-arm64.pub
 
 # Replace kernel and install kmods from this repo
 apk update
@@ -103,6 +103,8 @@ openwrt-kvm-arm64/
 ├── patches/              # Kernel configs with KVM
 ├── packages/             # Custom packages (ours feed)
 │   └── qemu-firmware-edk2-aarch64/
+├── keys/                 # Signing keys
+│   └── openwrt-kvm-arm64.pub  # Distribute to users
 ├── openwrt/              # OpenWrt source (submodule)
 └── docker/               # Build container
 ```

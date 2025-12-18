@@ -24,8 +24,13 @@
 │   └── rockchip/armv8/config-6.12  # KVM-enabled kernel config
 ├── packages/                       # "ours" feed
 │   └── qemu-firmware-edk2-aarch64/Makefile
+├── keys/                           # Signing keys
+│   ├── openwrt-kvm-arm64.key       # Build only (untracked)
+│   └── openwrt-kvm-arm64.pub       # Distribute to users
 ├── openwrt/                        # Submodule - OpenWrt source
 │   ├── feeds.conf -> ../feeds.conf
+│   ├── private-key.pem -> ../keys/openwrt-kvm-arm64.key
+│   ├── public-key.pem -> ../keys/openwrt-kvm-arm64.pub
 │   └── .config                     # Generated from configs/
 └── docker/                         # Build container
 ```
@@ -103,9 +108,10 @@ KVM requires ARMv8.1+ with Virtualization Host Extensions (VHE).
 | `configs/<target>-<subtarget>` | Minimal config seed (target + packages) |
 | `patches/<target>/<subtarget>/config-*` | Kernel config with KVM enabled |
 | `feeds.conf` | Feed definitions (packages for deps, ours for local) |
-| `bootstrap.sh` | Setup: submodule init, restore config via allnoconfig |
+| `bootstrap.sh` | Submodule init, symlink keys, restore config |
 | `sync.sh` | Run savedefconfig and save to patches/ |
 | `Makefile` | Build driver, feeds sync, package compilation |
+| `keys/` | Signing keys (*.pub distributed, *.key untracked) |
 
 ## Build Output
 

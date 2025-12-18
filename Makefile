@@ -1,6 +1,7 @@
 # OpenWrt KVM ARM64
 OPENWRT := openwrt
 OPENWRT_PACKAGEINFO := $(OPENWRT)/tmp/.packageinfo
+REPO_ROOT_FROM_OPENWRT := ..
 
 .PHONY: all prepare packages index sync clean distclean
 .PHONY: rockchip rockchip-%
@@ -11,7 +12,7 @@ prepare: $(OPENWRT)/.config $(OPENWRT_PACKAGEINFO)
 	$(MAKE) -C $(OPENWRT) package/system/apk/host/compile V=s
 
 $(OPENWRT_PACKAGEINFO): feeds.conf
-	ln -snf ../feeds.conf $(OPENWRT)/feeds.conf
+	ln -snf $(REPO_ROOT_FROM_OPENWRT)/feeds.conf $(OPENWRT)/feeds.conf
 	$(OPENWRT)/scripts/feeds update -a
 	$(OPENWRT)/scripts/feeds install -a
 

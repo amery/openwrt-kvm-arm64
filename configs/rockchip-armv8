@@ -1,9 +1,11 @@
 # Target
 CONFIG_TARGET_rockchip=y
 CONFIG_TARGET_rockchip_armv8=y
+CONFIG_TARGET_MULTI_PROFILE=y
 
 # Build all kernel modules
 CONFIG_ALL_KMODS=y
+CONFIG_KERNEL_KEYS=y
 
 # KVM support (kernel config in patches/)
 CONFIG_PACKAGE_kmod-vhost=y

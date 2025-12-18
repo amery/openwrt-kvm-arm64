@@ -17,9 +17,9 @@
 ```text
 ~/projects/openwrt-kvm-arm64/
 ├── Makefile                        # Build driver
-├── bootstrap.sh                    # Setup: submodule, feeds, copy configs
+├── bootstrap.sh                    # Setup: submodule init, restore config
 ├── sync.sh                         # Sync kernel config back to patches/
-├── feeds.conf                      # Feed definitions (just "ours")
+├── feeds.conf                      # Feed definitions (packages + ours)
 ├── configs/                        # Build configs per target
 │   └── rockchip-armv8              # Minimal config seed
 ├── patches/                        # Kernel configs per target
@@ -50,13 +50,15 @@
 
 ## Build Workflow
 
-### Full Build (configure + build)
+### Full Build
 
 ```bash
-make rockchip    # Configure for rockchip-armv8 + full build
+make rockchip-armv8  # Bootstrap config
+make prepare         # Sync feeds + build host tools
+make                 # Build packages + index
 ```
 
-This runs: bootstrap → prepare (defconfig + host tools) → packages → index
+Or step by step for more control.
 
 ### Incremental Builds
 
@@ -71,22 +73,22 @@ make index       # Generate packages.adb indexes only
 ### Setup Commands
 
 ```bash
-make prepare     # defconfig + build host tools (requires .config)
-make sync        # Save kernel config back to patches/
+make prepare     # Sync feeds + build host tools (requires .config)
 make clean       # Remove .config (for fresh start)
 make distclean   # Clean + OpenWrt dirclean
 ```
 
-### Modifying Kernel Config
+### Syncing Kernel Config
 
-After changing config (e.g., `make -C openwrt kernel_menuconfig`):
+After modifying kernel config (e.g., `make -C openwrt kernel_menuconfig`):
 
 ```bash
-make sync  # Save config back to patches/
+make sync  # Run savedefconfig and save to patches/
 ```
 
-Copies `openwrt/target/linux/.../config-*` back to `patches/` for VCS.
-Target is auto-detected from `.config`.
+This runs kernel's `savedefconfig` to produce a minimal config, then copies
+it to `patches/<target>/<subtarget>/config-<version>`. Target and version
+are auto-detected.
 
 ## Supported Targets
 
@@ -101,11 +103,11 @@ KVM requires ARMv8.1+ with Virtualization Host Extensions (VHE).
 | File | Purpose |
 | ---- | ------- |
 | `configs/<target>-<subtarget>` | Minimal config seed (target + packages) |
-| `patches/<target>/<subtarget>/config-*` | Full kernel config with KVM |
-| `feeds.conf` | Just `src-link ours ../../packages` |
-| `bootstrap.sh` | Setup script (submodule, feeds, copy configs) |
-| `sync.sh` | Sync kernel config back to patches/ (infers target from .config) |
-| `Makefile` | Build driver |
+| `patches/<target>/<subtarget>/config-*` | Kernel config with KVM enabled |
+| `feeds.conf` | Feed definitions (packages for deps, ours for local) |
+| `bootstrap.sh` | Setup: submodule init, restore config via allnoconfig |
+| `sync.sh` | Run savedefconfig and save to patches/ |
+| `Makefile` | Build driver, feeds sync, package compilation |
 
 ## Build Output
 
@@ -140,12 +142,16 @@ CONFIG_VHOST_NET=y
    cat > configs/<target>-<subtarget> <<'EOF'
    CONFIG_TARGET_<target>=y
    CONFIG_TARGET_<target>_<subtarget>=y
+   CONFIG_TARGET_MULTI_PROFILE=y
    CONFIG_ALL_KMODS=y
+   CONFIG_KERNEL_KEYS=y
    CONFIG_PACKAGE_kmod-vhost=y
    CONFIG_PACKAGE_kmod-vhost-net=y
    CONFIG_PACKAGE_qemu-firmware-edk2-aarch64=y
    # CONFIG_TARGET_ROOTFS_SQUASHFS is not set
    # CONFIG_TARGET_ROOTFS_EXT4FS is not set
+   # CONFIG_TARGET_ROOTFS_CPIOGZ is not set
+   # CONFIG_TARGET_ROOTFS_TARGZ is not set
    EOF
    ```
 
@@ -156,41 +162,38 @@ CONFIG_VHOST_NET=y
    # Start from upstream, add KVM options
    ```
 
-3. Add to Makefile `.PHONY` line:
-
-   ```makefile
-   .PHONY: <target> <target>-%
-   ```
-
-   And add rule:
+3. Add Makefile rules:
 
    <!-- markdownlint-disable MD010 -->
    ```makefile
-   <target> <target>-%:
+   .PHONY: <target> <target>-%
+
+   <target>: <target>-<default-subtarget>
+
+   <target>-%:
    	./bootstrap.sh $@
-   	$(MAKE) prepare
-   	$(MAKE)
    ```
    <!-- markdownlint-enable MD010 -->
 
 4. Build:
 
    ```bash
-   make <target>
+   make <target>-<subtarget>
+   make prepare
+   make
    ```
 
 ## Constraints
 
 - **One target at a time**: Clean between target switches
 - **vermagic**: Kmods tied to exact kernel config
-- **No interactive prompts**: Run `make defconfig` to expand config
+- **No interactive prompts**: Bootstrap uses allnoconfig to expand seed
 
 ## Troubleshooting
 
 | Problem | Solution |
 | ------- | -------- |
-| Config prompt during build | Run `make defconfig` first |
+| Config prompt during build | Re-run `make <target>-<subtarget>` to restore config |
 | `asort` function not defined | Use Docker (`x make`) or install gawk |
-| defconfig loses target | awk issue - use Docker |
 | Clock skew warnings | Ignore (NFS artefact) |
-| Submodule dirty | Expected - configs are modified locally |
+| Submodule dirty | Expected - build modifies openwrt/ |

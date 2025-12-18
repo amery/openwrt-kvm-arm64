@@ -1,6 +1,5 @@
 #!/bin/sh
 # Sync kernel config from OpenWrt build back to patches/
-# Reads TARGET/SUBTARGET directly from .config
 set -eu
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -22,25 +21,22 @@ SUBTARGET=$(sed -n "s/^CONFIG_TARGET_${TARGET}_\([a-z0-9]*\)=y$/\1/p" "$CONFIG" 
 
 info "Detected target: $TARGET/$SUBTARGET"
 
-src="$OPENWRT/target/linux/$TARGET/$SUBTARGET"
+# Find kernel build directory
+LINUX_DIR=$(find "$OPENWRT/build_dir" -maxdepth 4 -type d -name "linux-*" -path "*/linux-${TARGET}_${SUBTARGET}/linux-*" 2>/dev/null | head -1)
+[ -d "$LINUX_DIR" ] || die "Kernel build directory not found"
+
+# Extract kernel version (major.minor only, matching OpenWrt convention)
+KVER=$(basename "$LINUX_DIR" | sed 's/^linux-\([0-9]*\.[0-9]*\).*/\1/')
+info "Found kernel $KVER at $LINUX_DIR"
+
+# Run savedefconfig
+info "Running savedefconfig"
+make -C "$LINUX_DIR" savedefconfig
+
+# Copy to patches
 dst="$REPO_ROOT/patches/$TARGET/$SUBTARGET"
-
-[ -d "$src" ] || die "No build directory: $src"
 mkdir -p "$dst"
+info "Saving config-$KVER to patches/$TARGET/$SUBTARGET"
+cp "$LINUX_DIR/defconfig" "$dst/config-$KVER"
 
-synced=0
-for cfg in "$src"/config-*; do
-    [ -f "$cfg" ] || continue
-    base="$(basename "$cfg")"
-    if [ ! -f "$dst/$base" ] || [ "$cfg" -nt "$dst/$base" ]; then
-        info "Syncing $base"
-        cp "$cfg" "$dst/"
-        synced=$((synced + 1))
-    fi
-done
-
-if [ "$synced" -eq 0 ]; then
-    info "Nothing to sync"
-else
-    info "Synced $synced file(s) to patches/$TARGET/$SUBTARGET"
-fi
+info "Done"

@@ -4,9 +4,25 @@ set -eu
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 OPENWRT="$REPO_ROOT/openwrt"
+CONFIGS="$REPO_ROOT/configs"
+PATCHES="$REPO_ROOT/patches"
 
 die() { echo "bootstrap: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
+
+restore_config() {
+    local seed="$1"
+
+    make -C "$OPENWRT" scripts/config/conf
+    (
+        set -eu
+        cd "$OPENWRT"
+        rm -f .config
+        ./scripts/config/conf --allnoconfig -r "$seed" Config.in
+        sed -i '/CONFIG_PACKAGE_kmod-/d' .config
+        ./scripts/config/conf --olddefconfig -r "$seed" Config.in
+    )
+}
 
 # Parse target spec (e.g., "rockchip" or "rockchip-armv8")
 SPEC="${1:-}"
@@ -26,16 +42,16 @@ esac
 
 # If no subtarget, find from configs/
 if [ -z "$SUBTARGET" ]; then
-    matches=$(find "$REPO_ROOT/configs" -maxdepth 1 -name "${TARGET}-*" -type f 2>/dev/null | wc -l)
+    matches=$(find "$CONFIGS" -maxdepth 1 -name "${TARGET}-*" -type f 2>/dev/null | wc -l)
     case "$matches" in
         0) die "No config found for target '$TARGET'" ;;
         1)
-            config=$(find "$REPO_ROOT/configs" -maxdepth 1 -name "${TARGET}-*" -type f)
+            config=$(find "$CONFIGS" -maxdepth 1 -name "${TARGET}-*" -type f)
             SUBTARGET="${config##*-}"
             ;;
         *)
             echo "Multiple configs for '$TARGET':" >&2
-            find "$REPO_ROOT/configs" -maxdepth 1 -name "${TARGET}-*" -type f -exec basename {} \; >&2
+            find "$CONFIGS" -maxdepth 1 -name "${TARGET}-*" -type f -exec basename {} \; >&2
             die "Specify subtarget: $TARGET-<subtarget>"
             ;;
     esac
@@ -44,11 +60,11 @@ fi
 info "Target: $TARGET/$SUBTARGET"
 
 # Validate config exists
-config="$REPO_ROOT/configs/$TARGET-$SUBTARGET"
+config="$CONFIGS/$TARGET-$SUBTARGET"
 [ -f "$config" ] || die "No config: $config"
 
 # Validate patches exist
-patches="$REPO_ROOT/patches/$TARGET/$SUBTARGET"
+patches="$PATCHES/$TARGET/$SUBTARGET"
 [ -d "$patches" ] || die "No patches: $patches"
 
 # Initialise submodule
@@ -57,23 +73,9 @@ if [ ! -f "$OPENWRT/Makefile" ]; then
     git -C "$REPO_ROOT" submodule update --init --depth 1 openwrt
 fi
 
-# Create feeds.conf symlink
-if [ ! -e "$OPENWRT/feeds.conf" ]; then
-    info "Creating feeds.conf symlink"
-    ln -s ../feeds.conf "$OPENWRT/feeds.conf"
-fi
-
-# Update and install feeds (skip if already done)
-cd "$OPENWRT"
-if [ ! -d "feeds/ours" ]; then
-    info "Updating feeds"
-    ./scripts/feeds update -a
-    ./scripts/feeds install -a
-fi
-
-# Copy base config
-info "Copying config from configs/$TARGET-$SUBTARGET"
-cp "$config" "$OPENWRT/.config"
+# Restore and expand config
+info "Restoring config from configs/$TARGET-$SUBTARGET"
+restore_config "$config"
 
 # Copy kernel config from patches (only if newer)
 dst="$OPENWRT/target/linux/$TARGET/$SUBTARGET"

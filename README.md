@@ -32,10 +32,13 @@ KVM requires ARMv8.1+ with Virtualization Host Extensions (VHE).
 ### Build
 
 ```bash
-git clone --recurse-submodules https://github.com/amery/openwrt-kvm-arm64.git
+git clone --recurse-submodules \
+    https://github.com/amery/openwrt-kvm-arm64.git
 cd openwrt-kvm-arm64
 
-x make rockchip   # Configure + build for rockchip
+x make rockchip-armv8  # Bootstrap config
+x make prepare         # Sync feeds + build tools
+x make                 # Build packages + index
 ```
 
 The `x` wrapper (from docker-builder) runs commands inside a Docker
@@ -52,22 +55,24 @@ openwrt/bin/packages/aarch64_generic/ours/     # qemu-firmware
 
 ### Option 1: APK Repository
 
-Host packages on a web server and add to device:
+Host the build output on a web server. The repository URL structure
+should be `<repo>/rockchip/armv8/` (without `bin/targets/` prefix).
 
 ```bash
 # On device - add repository feeds
-REPO="https://your-server"
-echo "$REPO/targets/rockchip/armv8/packages" \
+REPO="https://your-server/openwrt-kvm"
+echo "$REPO/rockchip/armv8/packages.adb" \
     >> /etc/apk/repositories.d/kvm.list
-echo "$REPO/packages/aarch64_generic/ours" \
+echo "$REPO/aarch64_generic/ours/packages.adb" \
     >> /etc/apk/repositories.d/kvm.list
 
 # Install signing key
 wget "$REPO/keys/openwrt-kvm.pem" -O /etc/apk/keys/openwrt-kvm.pem
 
-# Install packages
+# Replace kernel and install kmods from this repo
 apk update
-apk add kernel kmod-vhost kmod-vhost-net qemu-firmware-edk2-aarch64
+apk add kernel qemu-firmware-edk2-aarch64
+apk add kmod-vhost kmod-vhost-net  # From this repo, not stock!
 reboot
 ```
 
@@ -93,7 +98,7 @@ openwrt-kvm-arm64/
 ├── Makefile              # Build driver
 ├── bootstrap.sh          # Setup script
 ├── sync.sh               # Sync kernel config to patches/
-├── feeds.conf            # Feed config (ours)
+├── feeds.conf            # Feed config (packages + ours)
 ├── configs/              # Build configs per target
 ├── patches/              # Kernel configs with KVM
 ├── packages/             # Custom packages (ours feed)

@@ -8,8 +8,6 @@
 
 **Output**: APK package repository (kernel + kmods + qemu-firmware)
 
-**Build host**: `compute1` (192.168.24.12) - ROCK 5B+ with 32GB RAM, ARM64.
-
 **Docker**: Recommended. Prefix commands with `x` for containerized builds.
 
 ## Repository Layout
@@ -17,7 +15,7 @@
 ```text
 ~/projects/openwrt-kvm-arm64/
 ├── Makefile                        # Build driver
-├── bootstrap.sh                    # Setup: submodule init, restore config
+├── bootstrap.sh                    # Submodule init, restore config
 ├── sync.sh                         # Sync kernel config back to patches/
 ├── feeds.conf                      # Feed definitions (packages + ours)
 ├── configs/                        # Build configs per target
@@ -125,14 +123,16 @@ openwrt/bin/packages/aarch64_generic/ours/
 
 ## KVM Kernel Options
 
-All `patches/.../config-*` files must contain:
+Kernel configs in `patches/.../config-*` must enable KVM support:
 
 ```text
 CONFIG_VIRTUALIZATION=y
 CONFIG_KVM=y
-CONFIG_VHOST=y
 CONFIG_VHOST_NET=y
 ```
+
+`CONFIG_VHOST` is auto-selected by `CONFIG_VHOST_NET`. Values may be `=y`
+(built-in) or `=m` (module) depending on config.
 
 ## Adding a New Target
 

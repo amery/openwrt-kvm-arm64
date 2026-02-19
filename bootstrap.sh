@@ -10,6 +10,37 @@ PATCHES="$REPO_ROOT/patches"
 
 die() { echo "bootstrap: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
+sync_submodules() {
+    local prev curr
+
+    prev=$(git -C "$OPENWRT" rev-parse --short HEAD 2>/dev/null || echo "none")
+
+    info "Syncing submodules"
+    git -C "$REPO_ROOT" submodule update --init --remote
+
+    curr=$(git -C "$OPENWRT" rev-parse --short HEAD 2>/dev/null || echo "none")
+
+    if [ "$prev" != "$curr" ]; then
+        info "openwrt updated: $prev -> $curr"
+        rm -rf "$OPENWRT/tmp"
+    fi
+}
+
+copy_kernel_configs() {
+    local patches="$1" dst="$2"
+    local cfg base
+
+    for cfg in "$patches"/config-*; do
+        [ -f "$cfg" ] || continue
+
+        base="$(basename "$cfg")"
+
+        if [ ! -f "$dst/$base" ] || [ "$cfg" -nt "$dst/$base" ]; then
+            info "Copying $base from ${patches#"$REPO_ROOT"/}"
+            cp "$cfg" "$dst/"
+        fi
+    done
+}
 
 setup_keys() {
     local name="$1"
@@ -36,7 +67,7 @@ setup_keys() {
 restore_config() {
     local seed="$1"
 
-    make -C "$OPENWRT" scripts/config/conf
+    make -C "$OPENWRT" prepare-tmpinfo scripts/config/conf
     (
         set -eu
         cd "$OPENWRT"
@@ -90,11 +121,7 @@ config="$CONFIGS/$TARGET-$SUBTARGET"
 patches="$PATCHES/$TARGET/$SUBTARGET"
 [ -d "$patches" ] || die "No patches: $patches"
 
-# Initialise submodule
-if [ ! -f "$OPENWRT/Makefile" ]; then
-    info "Initialising openwrt submodule"
-    git -C "$REPO_ROOT" submodule update --init --depth 1 openwrt
-fi
+sync_submodules
 
 # Setup signing keys
 setup_keys "openwrt-kvm-arm64"
@@ -103,16 +130,6 @@ setup_keys "openwrt-kvm-arm64"
 info "Restoring config from configs/$TARGET-$SUBTARGET"
 restore_config "$config"
 
-# Copy kernel config from patches (only if newer)
-dst="$OPENWRT/target/linux/$TARGET/$SUBTARGET"
-
-for cfg in "$patches"/config-*; do
-    [ -f "$cfg" ] || continue
-    base="$(basename "$cfg")"
-    if [ ! -f "$dst/$base" ] || [ "$cfg" -nt "$dst/$base" ]; then
-        info "Copying $base from patches/$TARGET/$SUBTARGET"
-        cp "$cfg" "$dst/"
-    fi
-done
+copy_kernel_configs "$patches" "$OPENWRT/target/linux/$TARGET/$SUBTARGET"
 
 info "Done"

@@ -9,9 +9,8 @@ REPO_ROOT_FROM_OPENWRT := ..
 all: packages index
 
 prepare: $(OPENWRT)/.config $(OPENWRT_PACKAGEINFO)
-	$(MAKE) -C $(OPENWRT) package/system/apk/host/compile V=s
 
-$(OPENWRT_PACKAGEINFO): feeds.conf
+$(OPENWRT_PACKAGEINFO): feeds.conf | $(OPENWRT)/.config
 	ln -snf $(REPO_ROOT_FROM_OPENWRT)/feeds.conf $(OPENWRT)/feeds.conf
 	$(OPENWRT)/scripts/feeds update -a
 	$(OPENWRT)/scripts/feeds install -a
@@ -19,7 +18,10 @@ $(OPENWRT_PACKAGEINFO): feeds.conf
 $(OPENWRT)/.config:
 	@echo "No .config - run 'make <target>' first" >&2; false
 
-packages: $(OPENWRT_PACKAGEINFO)
+packages: $(OPENWRT)/.config $(OPENWRT_PACKAGEINFO)
+	$(MAKE) -C $(OPENWRT) tools/install V=s
+	$(MAKE) -C $(OPENWRT) toolchain/install V=s
+	$(MAKE) -C $(OPENWRT) target/compile V=s
 	$(MAKE) -C $(OPENWRT) package/compile V=s
 
 index: $(OPENWRT_PACKAGEINFO)
@@ -29,13 +31,15 @@ sync:
 	./sync.sh
 
 clean:
+	rm -rf $(OPENWRT)/tmp
 	rm -f $(OPENWRT)/.config
 
-distclean: clean
-	$(MAKE) -C $(OPENWRT) dirclean
+distclean:
+	+@if [ -f $(OPENWRT)/.config ]; then $(MAKE) -C $(OPENWRT) dirclean; fi
+	$(MAKE) clean
 
 # Targets: rockchip (default subtarget), rockchip-armv8, etc.
 rockchip: rockchip-armv8
 
 rockchip-%:
-	./bootstrap.sh $@
+	+./bootstrap.sh $@

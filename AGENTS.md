@@ -15,15 +15,17 @@
 ```text
 ~/projects/openwrt-kvm-arm64/
 ├── Makefile                        # Build driver
-├── bootstrap.sh                    # Submodule init, restore config
+├── bootstrap.sh                    # Sync submodule, restore config
 ├── sync.sh                         # Sync kernel config back to patches/
-├── feeds.conf                      # Feed definitions (packages + ours)
+├── feeds.conf                      # Feed definitions (src-link)
+├── feeds/                          # Feed sources
+│   ├── packages/                   # Submodule - OpenWrt packages feed
+│   └── ours/                       # Custom packages
+│       └── qemu-firmware-edk2-aarch64/Makefile
 ├── configs/                        # Build configs per target
 │   └── rockchip-armv8              # Minimal config seed
 ├── patches/                        # Kernel configs per target
 │   └── rockchip/armv8/config-6.12  # KVM-enabled kernel config
-├── packages/                       # "ours" feed
-│   └── qemu-firmware-edk2-aarch64/Makefile
 ├── keys/                           # Signing keys
 │   ├── openwrt-kvm-arm64.key       # Build only (untracked)
 │   └── openwrt-kvm-arm64.pub       # Distribute to users
@@ -46,7 +48,11 @@
 3. **Minimal scope**: Only kernel packages + our custom packages.
    Not a full OpenWrt build. Rootfs/image generation is disabled in config.
 
-4. **Docker recommended**: Prefix commands with `x` for containerized builds
+4. **Branch-tracking submodules**: Both `openwrt` and `feeds/packages`
+   track the `openwrt-25.12` branch. Bootstrap syncs all submodules to
+   their branch tips via `--remote`, cleaning stale metadata on update.
+
+5. **Docker recommended**: Prefix commands with `x` for containerized builds
    (e.g., `x make packages`). Native builds require gawk (not mawk) for
    OpenWrt's build system. Docker provides the correct environment.
    Requires [docker-builder](https://github.com/amery/docker-builder).
@@ -57,7 +63,7 @@
 
 ```bash
 make rockchip-armv8  # Bootstrap config
-make prepare         # Sync feeds + build host tools
+make prepare         # Sync feeds + build toolchain
 make                 # Build packages + index
 ```
 
@@ -76,9 +82,9 @@ make index       # Generate packages.adb indexes only
 ### Setup Commands
 
 ```bash
-make prepare     # Sync feeds + build host tools (requires .config)
-make clean       # Remove .config (for fresh start)
-make distclean   # Clean + OpenWrt dirclean
+make prepare     # Ensure .config + feeds are synced (requires bootstrap first)
+make clean       # Remove openwrt/tmp/ and .config (for fresh start)
+make distclean   # Clean + OpenWrt dirclean (nukes toolchain)
 ```
 
 ### Syncing Kernel Config
@@ -107,10 +113,12 @@ KVM requires ARMv8.1+ with Virtualization Host Extensions (VHE).
 | ---- | ------- |
 | `configs/<target>-<subtarget>` | Minimal config seed (target + packages) |
 | `patches/<target>/<subtarget>/config-*` | Kernel config with KVM enabled |
-| `feeds.conf` | Feed definitions (packages for deps, ours for local) |
-| `bootstrap.sh` | Submodule init, symlink keys, restore config |
+| `feeds.conf` | Feed definitions (src-link to feeds/) |
+| `feeds/packages/` | Submodule - OpenWrt packages feed (kmod deps) |
+| `feeds/ours/` | Custom packages (qemu-firmware) |
+| `bootstrap.sh` | Sync submodules, symlink keys, restore config |
 | `sync.sh` | Run savedefconfig and save to patches/ |
-| `Makefile` | Build driver, feeds sync, package compilation |
+| `Makefile` | Build driver: feeds sync, package compilation |
 | `keys/` | Signing keys (*.pub distributed, *.key untracked) |
 
 ## Build Output

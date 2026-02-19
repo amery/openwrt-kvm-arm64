@@ -37,12 +37,14 @@ git clone --recurse-submodules \
 cd openwrt-kvm-arm64
 
 x make rockchip-armv8  # Bootstrap config
-x make prepare         # Sync feeds + build tools
+x make prepare         # Ensure feeds are synced
 x make                 # Build packages + index
 ```
 
 The `x` wrapper (from docker-builder) runs commands inside a Docker
-container with the correct build environment.
+container with the correct build environment. Submodules (`openwrt` and
+`feeds/packages`) track the `openwrt-25.12` branch and are synced
+automatically during bootstrap.
 
 ### Output
 
@@ -96,13 +98,15 @@ lsmod | grep -E 'kvm|vhost'
 ```text
 openwrt-kvm-arm64/
 ├── Makefile              # Build driver
-├── bootstrap.sh          # Setup script
+├── bootstrap.sh          # Sync submodule + restore config
 ├── sync.sh               # Sync kernel config to patches/
-├── feeds.conf            # Feed config (packages + ours)
+├── feeds.conf            # Feed config (src-link)
+├── feeds/                # Feed sources
+│   ├── packages/         # Submodule - OpenWrt packages
+│   └── ours/             # Custom packages
+│       └── qemu-firmware-edk2-aarch64/
 ├── configs/              # Build configs per target
 ├── patches/              # Kernel configs with KVM
-├── packages/             # Custom packages (ours feed)
-│   └── qemu-firmware-edk2-aarch64/
 ├── keys/                 # Signing keys
 │   └── openwrt-kvm-arm64.pub  # Distribute to users
 ├── openwrt/              # OpenWrt source (submodule)

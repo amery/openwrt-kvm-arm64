@@ -8,22 +8,122 @@ OPENWRT="$REPO_ROOT/openwrt"
 CONFIGS="$REPO_ROOT/configs"
 PATCHES="$REPO_ROOT/patches"
 
+# Pinned OpenWrt release. Bump this ref to move to a newer release;
+# the packages feed pin follows from the release's feeds.conf.default.
+OPENWRT_REF="v25.12.4"
+
 die() { echo "bootstrap: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
-sync_submodules() {
-    local prev curr
 
-    prev=$(git -C "$OPENWRT" rev-parse --short HEAD 2>/dev/null || echo "none")
+init_submodule() {
+    local dir="$1"
 
-    info "Syncing submodules"
-    git -C "$REPO_ROOT" submodule update --init --remote
+    if [ ! -e "$REPO_ROOT/$dir/.git" ]; then
+        info "Initialising $dir"
+        git -C "$REPO_ROOT" submodule update --init "$dir"
+    fi
+}
 
-    curr=$(git -C "$OPENWRT" rev-parse --short HEAD 2>/dev/null || echo "none")
+checkout_ref() {
+    local dir="$1" ref="$2"
+    local head want
 
-    if [ "$prev" != "$curr" ]; then
-        info "openwrt updated: $prev -> $curr"
+    if ! git -C "$REPO_ROOT/$dir" rev-parse --verify --quiet "$ref^{commit}" > /dev/null; then
+        info "$dir: fetching $ref"
+        git -C "$REPO_ROOT/$dir" fetch --tags origin
+    fi
+
+    head=$(git -C "$REPO_ROOT/$dir" rev-parse HEAD)
+    want=$(git -C "$REPO_ROOT/$dir" rev-parse "$ref^{commit}")
+
+    if [ "$head" != "$want" ]; then
+        info "$dir: checking out $ref"
+        git -C "$REPO_ROOT/$dir" checkout "$ref"
+    fi
+}
+
+# Commit hash a feed is pinned to in the release's feeds.conf.default
+feed_pin() {
+    local name="$1"
+
+    sed -n "s|^src-git $name .*\^||p" "$OPENWRT/feeds.conf.default"
+}
+
+patch_applied() {
+    local dir="$1" patch="$2"
+
+    git -C "$dir" apply --reverse --check "$patch" 2> /dev/null
+}
+
+reverse_patches() {
+    local dir="$1" patches="$2"
+    local p list=""
+
+    # reverse in reverse order so stacked patches unwind cleanly
+    for p in "$patches"/*.patch; do
+        [ -f "$p" ] || continue
+
+        list="$p $list"
+    done
+
+    for p in $list; do
+        if patch_applied "$dir" "$p"; then
+            info "Reverting ${p##*/}"
+            git -C "$dir" apply --reverse "$p"
+        fi
+    done
+}
+
+apply_patches() {
+    local dir="$1" patches="$2"
+    local p
+
+    for p in "$patches"/*.patch; do
+        [ -f "$p" ] || continue
+
+        if patch_applied "$dir" "$p"; then
+            info "Already applied: ${p##*/}"
+        elif git -C "$dir" apply --check "$p" 2> /dev/null; then
+            info "Applying ${p##*/}"
+            git -C "$dir" apply "$p"
+        else
+            die "Patch does not apply: $p"
+        fi
+    done
+}
+
+sync_openwrt() {
+    local ref="$1"
+    local prev want
+
+    init_submodule openwrt
+
+    if ! git -C "$OPENWRT" rev-parse --verify --quiet "$ref^{commit}" > /dev/null; then
+        info "openwrt: fetching $ref"
+        git -C "$OPENWRT" fetch --tags origin
+    fi
+
+    prev=$(git -C "$OPENWRT" rev-parse HEAD)
+    want=$(git -C "$OPENWRT" rev-parse "$ref^{commit}")
+
+    if [ "$prev" != "$want" ]; then
+        info "openwrt: checking out $ref"
+        reverse_patches "$OPENWRT" "$PATCHES/openwrt"
+        git -C "$OPENWRT" checkout "$ref"
         rm -rf "$OPENWRT/tmp"
     fi
+
+    apply_patches "$OPENWRT" "$PATCHES/openwrt"
+}
+
+sync_feeds() {
+    local pin
+
+    pin=$(feed_pin packages)
+    [ -n "$pin" ] || die "feeds.conf.default: no pin for feed 'packages'"
+
+    init_submodule feeds/packages
+    checkout_ref feeds/packages "$pin"
 }
 
 copy_kernel_configs() {
@@ -121,7 +221,8 @@ config="$CONFIGS/$TARGET-$SUBTARGET"
 patches="$PATCHES/$TARGET/$SUBTARGET"
 [ -d "$patches" ] || die "No patches: $patches"
 
-sync_submodules
+sync_openwrt "$OPENWRT_REF"
+sync_feeds
 
 # Setup signing keys
 setup_keys "openwrt-kvm-arm64"

@@ -1,8 +1,6 @@
 [submodule "openwrt"]
 	path = openwrt
 	url = https://git.openwrt.org/openwrt/openwrt.git
-	branch = openwrt-25.12
 [submodule "feeds/packages"]
 	path = feeds/packages
 	url = https://git.openwrt.org/feed/packages.git
-	branch = openwrt-25.12

@@ -1,0 +1,36 @@
+diff --git a/package/network/utils/uqmi/Makefile b/package/network/utils/uqmi/Makefile
+index 46bc37644e..b1e58d5719 100644
+--- a/package/network/utils/uqmi/Makefile
++++ b/package/network/utils/uqmi/Makefile
+@@ -1,7 +1,7 @@
+ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=uqmi
+-PKG_RELEASE:=2
++PKG_RELEASE:=3
+ 
+ PKG_SOURCE_PROTO:=git
+ PKG_SOURCE_URL=$(PROJECT_GIT)/project/uqmi.git
+diff --git a/package/network/utils/uqmi/files/lib/netifd/proto/qmi.sh b/package/network/utils/uqmi/files/lib/netifd/proto/qmi.sh
+index 8f45e25ee4..96ff654075 100755
+--- a/package/network/utils/uqmi/files/lib/netifd/proto/qmi.sh
++++ b/package/network/utils/uqmi/files/lib/netifd/proto/qmi.sh
+@@ -268,7 +268,9 @@ proto_qmi_setup() {
+ 		}
+ 
+ 		echo "Device does not support 802.3 mode. Informing driver of raw-ip only for $ifname .."
++		ip link set $ifname down
+ 		echo "Y" > /sys/class/net/$ifname/qmi/raw_ip
++		ip link set $ifname up
+ 	fi
+ 
+ 	uqmi -s -d "$device" -t 1000 --sync > /dev/null 2>&1
+@@ -484,7 +486,7 @@ proto_qmi_setup() {
+ 	}
+ 
+ 	[ -n "$pdh_4" ] && {
+-		if [ "$dhcp" = 0 ]; then
++		if [ "$dhcp" = 0 ] || [ "$dataformat" = "raw-ip" ]; then
+ 			json_load "$(uqmi -s -d $device -t 1000 --set-client-id wds,$cid_4 --get-current-settings)"
+ 			json_select ipv4
+ 			json_get_var ip_4 ip

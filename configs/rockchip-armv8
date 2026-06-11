@@ -13,6 +13,7 @@ CONFIG_PACKAGE_kmod-vhost-net=y
 
 # Our packages
 CONFIG_PACKAGE_qemu-firmware-edk2-aarch64=y
+CONFIG_PACKAGE_uqmi=m
 
 # Disable image/rootfs generation (packages only)
 # CONFIG_TARGET_ROOTFS_SQUASHFS is not set

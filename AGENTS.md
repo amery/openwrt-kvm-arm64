@@ -48,9 +48,12 @@
 3. **Minimal scope**: Only kernel packages + our custom packages.
    Not a full OpenWrt build. Rootfs/image generation is disabled in config.
 
-4. **Branch-tracking submodules**: Both `openwrt` and `feeds/packages`
-   track the `openwrt-25.12` branch. Bootstrap syncs all submodules to
-   their branch tips via `--remote`, cleaning stale metadata on update.
+4. **Pinned to the user's release**: users replace their kernel with
+   ours, so it must be a drop-in for the stock release kernel.
+   `openwrt` is pinned to the release tag (`OPENWRT_REF` in
+   `bootstrap.sh`); `feeds/packages` follows the pin in the release's
+   `feeds.conf.default`. Bootstrap checks both out and re-applies
+   `patches/openwrt/` across ref moves.
 
 5. **Docker recommended**: Prefix commands with `x` for containerized builds
    (e.g., `x make packages`). Native builds require gawk (not mawk) for

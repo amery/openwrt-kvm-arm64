@@ -43,8 +43,8 @@ x make                 # Build packages + index
 
 The `x` wrapper (from docker-builder) runs commands inside a Docker
 container with the correct build environment. Submodules (`openwrt` and
-`feeds/packages`) track the `openwrt-25.12` branch and are synced
-automatically during bootstrap.
+`feeds/packages`) are pinned to the OpenWrt release the target devices
+run, and checked out automatically during bootstrap.
 
 ### Output
 

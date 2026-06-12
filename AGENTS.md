@@ -16,7 +16,6 @@
 ~/projects/openwrt-kvm-arm64/
 ├── Makefile                        # Build driver
 ├── bootstrap.sh                    # Sync submodule, restore config
-├── sync.sh                         # Sync kernel config back to patches/
 ├── feeds.conf                      # Feed definitions (src-link)
 ├── feeds/                          # Feed sources
 │   ├── packages/                   # Submodule - OpenWrt packages feed
@@ -24,8 +23,9 @@
 │       └── qemu-firmware-edk2-aarch64/Makefile
 ├── configs/                        # Build configs per target
 │   └── rockchip-armv8              # Minimal config seed
-├── patches/                        # Kernel configs per target
-│   └── rockchip/armv8/config-6.12  # KVM-enabled kernel config
+├── patches/                        # Patches + kernel config fragments
+│   ├── openwrt/                    # Patch series for the openwrt tree
+│   └── rockchip/armv8/kernel-config  # KVM kernel config fragment
 ├── keys/                           # Signing keys
 │   ├── openwrt-kvm-arm64.key       # Build only (untracked)
 │   └── openwrt-kvm-arm64.pub       # Distribute to users
@@ -87,17 +87,25 @@ make clean       # Remove openwrt/tmp/ and .config (for fresh start)
 make distclean   # Clean + OpenWrt dirclean (nukes toolchain)
 ```
 
-### Syncing Kernel Config
+### Editing the Kernel Config
 
-After modifying kernel config (e.g., `make -C openwrt kernel_menuconfig`):
+Bootstrap links `patches/<target>/<subtarget>/kernel-config` into
+OpenWrt's native `env/kernel-config` slot, merged last into the kernel
+config. Edit it through the build system:
 
 ```bash
-make sync  # Run savedefconfig and save to patches/
+x make -C openwrt kernel_menuconfig CONFIG_TARGET=env
 ```
 
-This runs kernel's `savedefconfig` to produce a minimal config, then copies
-it to `patches/<target>/<subtarget>/config-<version>`. Target and version
-are auto-detected.
+This writes the filtered config diff back through the link. After a
+kernel bump, refresh the fragment non-interactively:
+
+```bash
+yes '' | x make -C openwrt kernel_oldconfig CONFIG_TARGET=env
+```
+
+The fragment is machine-maintained; hand-written comments are lost on
+regeneration.
 
 ## Supported Targets
 
@@ -112,12 +120,11 @@ KVM requires ARMv8.1+ with Virtualization Host Extensions (VHE).
 | File | Purpose |
 | ---- | ------- |
 | `configs/<target>-<subtarget>` | Minimal config seed (target + packages) |
-| `patches/<target>/<subtarget>/config-*` | Kernel config with KVM enabled |
+| `patches/<target>/<subtarget>/kernel-config` | Kernel config fragment (KVM deltas) |
 | `feeds.conf` | Feed definitions (src-link to feeds/) |
 | `feeds/packages/` | Submodule - OpenWrt packages feed (kmod deps) |
 | `feeds/ours/` | Custom packages (qemu-firmware) |
-| `bootstrap.sh` | Sync submodules, symlink keys, restore config |
-| `sync.sh` | Run savedefconfig and save to patches/ |
+| `bootstrap.sh` | Sync submodules, link kernel config + keys, restore config |
 | `Makefile` | Build driver: feeds sync, package compilation |
 | `keys/` | Signing keys (*.pub distributed, *.key untracked) |
 
@@ -137,16 +144,15 @@ openwrt/bin/packages/aarch64_generic/ours/
 
 ## KVM Kernel Options
 
-Kernel configs in `patches/.../config-*` must enable KVM support:
+The fragment `patches/.../kernel-config` builds KVM in:
 
 ```text
 CONFIG_VIRTUALIZATION=y
 CONFIG_KVM=y
-CONFIG_VHOST_NET=y
 ```
 
-`CONFIG_VHOST` is auto-selected by `CONFIG_VHOST_NET`. Values may be `=y`
-(built-in) or `=m` (module) depending on config.
+VHOST is not in the fragment: the `kmod-vhost` and `kmod-vhost-net`
+packages selected in the config seed build it as modules.
 
 ## Adding a New Target
 
@@ -169,11 +175,17 @@ CONFIG_VHOST_NET=y
    EOF
    ```
 
-2. Create kernel config with KVM:
+2. Create an empty kernel config fragment:
 
    ```bash
    mkdir -p patches/<target>/<subtarget>
-   # Start from upstream, add KVM options
+   touch patches/<target>/<subtarget>/kernel-config
+   ```
+
+   After bootstrap, add the KVM options through the build system:
+
+   ```bash
+   x make -C openwrt kernel_menuconfig CONFIG_TARGET=env
    ```
 
 3. Add Makefile rules:

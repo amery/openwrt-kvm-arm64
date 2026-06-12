@@ -126,20 +126,16 @@ sync_feeds() {
     checkout_ref feeds/packages "$pin"
 }
 
-copy_kernel_configs() {
-    local patches="$1" dst="$2"
-    local cfg base
+# Link the target's kernel config fragment into OpenWrt's native
+# env/kernel-config slot, merged last into the kernel config.
+# `make kernel_menuconfig CONFIG_TARGET=env` edits it through the link.
+setup_kernel_config() {
+    local fragment="$1"
 
-    for cfg in "$patches"/config-*; do
-        [ -f "$cfg" ] || continue
+    [ -f "$REPO_ROOT/$fragment" ] || die "No kernel config fragment: $fragment"
 
-        base="$(basename "$cfg")"
-
-        if [ ! -f "$dst/$base" ] || [ "$cfg" -nt "$dst/$base" ]; then
-            info "Copying $base from ${patches#"$REPO_ROOT"/}"
-            cp "$cfg" "$dst/"
-        fi
-    done
+    mkdir -p "$OPENWRT/env"
+    ln -snf "../$REPO_ROOT_FROM_OPENWRT/$fragment" "$OPENWRT/env/kernel-config"
 }
 
 setup_keys() {
@@ -171,10 +167,21 @@ restore_config() {
     (
         set -eu
         cd "$OPENWRT"
-        rm -f .config
+        # render to a scratch file and only replace .config when the
+        # content changes, so re-running bootstrap stays rebuild-free
+        export KCONFIG_CONFIG=.config.new
+        rm -f .config.new
         ./scripts/config/conf --allnoconfig -r "$seed" Config.in
-        sed -i '/CONFIG_PACKAGE_kmod-/d' .config
+        sed -i '/CONFIG_PACKAGE_kmod-/d' .config.new
         ./scripts/config/conf --olddefconfig -r "$seed" Config.in
+
+        if cmp -s .config.new .config; then
+            rm -f .config.new
+        else
+            info "Updating .config"
+            mv .config.new .config
+        fi
+        rm -f .config.new.old
     )
 }
 
@@ -227,10 +234,10 @@ sync_feeds
 # Setup signing keys
 setup_keys "openwrt-kvm-arm64"
 
+setup_kernel_config "patches/$TARGET/$SUBTARGET/kernel-config"
+
 # Restore and expand config
 info "Restoring config from configs/$TARGET-$SUBTARGET"
 restore_config "$config"
-
-copy_kernel_configs "$patches" "$OPENWRT/target/linux/$TARGET/$SUBTARGET"
 
 info "Done"

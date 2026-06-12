@@ -89,8 +89,8 @@ with `apk add`.
 ## Verifying KVM
 
 ```bash
-ls -la /dev/kvm
-lsmod | grep -E 'kvm|vhost'
+ls -la /dev/kvm    # KVM is built into the kernel
+lsmod | grep vhost
 ```
 
 ## Repository Structure
@@ -99,14 +99,13 @@ lsmod | grep -E 'kvm|vhost'
 openwrt-kvm-arm64/
 ├── Makefile              # Build driver
 ├── bootstrap.sh          # Sync submodule + restore config
-├── sync.sh               # Sync kernel config to patches/
 ├── feeds.conf            # Feed config (src-link)
 ├── feeds/                # Feed sources
 │   ├── packages/         # Submodule - OpenWrt packages
 │   └── ours/             # Custom packages
 │       └── qemu-firmware-edk2-aarch64/
 ├── configs/              # Build configs per target
-├── patches/              # Kernel configs with KVM
+├── patches/              # Patches + kernel config fragments
 ├── keys/                 # Signing keys
 │   └── openwrt-kvm-arm64.pub  # Distribute to users
 ├── openwrt/              # OpenWrt source (submodule)

@@ -3,7 +3,7 @@ OPENWRT := openwrt
 OPENWRT_PACKAGEINFO := $(OPENWRT)/tmp/.packageinfo
 REPO_ROOT_FROM_OPENWRT := ..
 
-.PHONY: all prepare packages index sync clean distclean
+.PHONY: all prepare packages index clean distclean
 .PHONY: rockchip rockchip-%
 
 all: packages index
@@ -26,9 +26,6 @@ packages: $(OPENWRT)/.config $(OPENWRT_PACKAGEINFO)
 
 index: $(OPENWRT_PACKAGEINFO)
 	$(MAKE) -C $(OPENWRT) package/index
-
-sync:
-	./sync.sh
 
 clean:
 	rm -rf $(OPENWRT)/tmp

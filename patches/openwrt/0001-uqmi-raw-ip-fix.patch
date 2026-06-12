@@ -30,7 +30,7 @@ index 8f45e25ee4..96ff654075 100755
  
  	[ -n "$pdh_4" ] && {
 -		if [ "$dhcp" = 0 ]; then
-+		if [ "$dhcp" = 0 ] || [ "$dataformat" = "raw-ip" ]; then
++		if [ "$dhcp" = 0 -o "$dataformat" = "raw-ip" ]; then
  			json_load "$(uqmi -s -d $device -t 1000 --set-client-id wds,$cid_4 --get-current-settings)"
  			json_select ipv4
  			json_get_var ip_4 ip
